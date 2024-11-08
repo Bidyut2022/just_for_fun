@@ -1,0 +1,44 @@
+name: Selective QA Merge to Release
+
+on:
+  pull_request:
+    types: [labeled]
+
+jobs:
+  merge-qa-approved:
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'QA-approved')
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+        # Checks out the repository code
+
+      - name: Create Release Branch
+        run: |
+          git fetch origin main
+          git checkout -b release origin/main
+        # Creates a release branch from the latest main branch
+
+      - name: Cherry-Pick QA-Approved Commit
+        run: |
+          git fetch origin dev
+          git cherry-pick ${{ github.event.pull_request.head.sha }}
+        # Cherry-picks the commit from the labeled PR onto the release branch
+
+      - name: Push to Release Branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push origin release --force
+        # Pushes the updated release branch to the remote repository
+
+      - name: Create Pull Request to Main
+        uses: peter-evans/create-pull-request@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: main
+          head: release
+          title: "Selective Merge of QA-Approved PRs"
+          body: "This PR includes only QA-approved changes ready for production."
+        # Opens a pull request from release to main with QA-approved changes
